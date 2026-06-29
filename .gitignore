@@ -1,0 +1,28 @@
+# Visual Studio
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Installer
+InstallerOutput/
+[Pp]ublish/
+
+# Binaries
+*.exe
+*.dll
+*.pdb
+*.bin

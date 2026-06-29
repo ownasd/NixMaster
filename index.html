@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NixMaster — End-to-End Traceability Dashboard</title>
+  <meta name="description" content="Real-time combined traceability report from Assembly and Packing stations synced via Firebase." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ═══════════════════  SIDEBAR  ═══════════════════ -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🔗</div>
+      <div>
+        <div class="logo-title">NixMaster</div>
+        <div class="logo-sub">Traceability Hub</div>
+      </div>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#" class="nav-link active" data-page="dashboard" onclick="showPage('dashboard',this)">
+        <span class="nav-icon">📊</span> Dashboard
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="records" onclick="showPage('records',this)">
+        <span class="nav-icon">📋</span> All Records
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="search" onclick="showPage('search',this)">
+        <span class="nav-icon">🔍</span> Search Unit ID
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="settings" onclick="showPage('settings',this)">
+        <span class="nav-icon">⚙️</span> Settings
+      </a></li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="sync-status" id="syncStatus">
+        <span class="dot dot-green"></span> Live Connected
+      </div>
+      <div class="last-refresh" id="lastRefresh">Refreshing...</div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════  MAIN CONTENT  ═══════════════════ -->
+  <main class="main-content">
+
+    <!-- ── TOP BAR ── -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="page-title" id="pageTitle">Dashboard</div>
+        <div class="page-breadcrumb" id="pageBreadcrumb">Overview of all stations</div>
+      </div>
+      <div class="topbar-right">
+        <div class="live-clock" id="liveClock"></div>
+        <button class="btn btn-primary" id="refreshBtn" onclick="fetchAllRecords()">
+          <span id="refreshIcon">↻</span> Refresh
+        </button>
+        <button class="btn btn-success" id="exportBtn" onclick="exportToCSV()">
+          ⬇ Export CSV
+        </button>
+      </div>
+    </header>
+
+    <!-- ══════════ PAGE: DASHBOARD ══════════ -->
+    <section class="page active" id="page-dashboard">
+      <!-- KPI Cards -->
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card kpi-total">
+          <div class="kpi-icon">🏭</div>
+          <div class="kpi-value" id="kpiTotal">—</div>
+          <div class="kpi-label">Total Units</div>
+        </div>
+        <div class="kpi-card kpi-assembled">
+          <div class="kpi-icon">🔩</div>
+          <div class="kpi-value" id="kpiAssembled">—</div>
+          <div class="kpi-label">Assembled</div>
+        </div>
+        <div class="kpi-card kpi-packed">
+          <div class="kpi-icon">📦</div>
+          <div class="kpi-value" id="kpiPacked">—</div>
+          <div class="kpi-label">Packed</div>
+        </div>
+        <div class="kpi-card kpi-pending">
+          <div class="kpi-icon">⏳</div>
+          <div class="kpi-value" id="kpiPending">—</div>
+          <div class="kpi-label">Pending Packing</div>
+        </div>
+        <div class="kpi-card kpi-boxes">
+          <div class="kpi-icon">🗃️</div>
+          <div class="kpi-value" id="kpiBoxes">—</div>
+          <div class="kpi-label">Boxes Used</div>
+        </div>
+      </div>
+
+      <!-- Chart Row -->
+      <div class="chart-row">
+        <div class="card chart-card">
+          <div class="card-header">
+            <h3>Assembly vs Packing — Today's Progress</h3>
+          </div>
+          <div class="bar-chart-wrap" id="barChartWrap">
+            <div class="chart-placeholder">Loading data...</div>
+          </div>
+        </div>
+        <div class="card chart-card-sm">
+          <div class="card-header"><h3>Status Split</h3></div>
+          <div class="donut-wrap" id="donutWrap">
+            <svg class="donut-svg" viewBox="0 0 120 120" id="donutSvg">
+              <circle class="donut-ring" cx="60" cy="60" r="48"/>
+              <circle class="donut-seg seg-packed" cx="60" cy="60" r="48" id="segPacked"/>
+              <circle class="donut-seg seg-pending" cx="60" cy="60" r="48" id="segPending"/>
+              <text x="60" y="55" class="donut-label" id="donutPct">0%</text>
+              <text x="60" y="70" class="donut-sublabel">Packed</text>
+            </svg>
+            <div class="donut-legend">
+              <div class="legend-item"><span class="legend-dot packed-dot"></span>Packed</div>
+              <div class="legend-item"><span class="legend-dot pending-dot"></span>Pending</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Records table on dashboard -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Recent Records (Last 20)</h3>
+          <span class="badge" id="dashRecordCount">0</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="dashTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>MAC ID</th>
+                <th>Assembly Time</th>
+                <th>Operator</th>
+                <th>Shift</th>
+                <th>Box No</th>
+                <th>Packed At</th>
+                <th>Packed By</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="dashTableBody">
+              <tr><td colspan="9" class="empty-row">Fetching data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: ALL RECORDS ══════════ -->
+    <section class="page" id="page-records">
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label>Date From</label>
+          <input type="date" id="filterFrom" class="filter-input" />
+        </div>
+        <div class="filter-group">
+          <label>Date To</label>
+          <input type="date" id="filterTo" class="filter-input" />
+        </div>
+        <div class="filter-group">
+          <label>Status</label>
+          <select id="filterStatus" class="filter-input">
+            <option value="">All</option>
+            <option value="complete">Assembled + Packed</option>
+            <option value="assembled">Assembled Only</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Shift</label>
+          <select id="filterShift" class="filter-input">
+            <option value="">All</option>
+            <option value="Morning">Morning</option>
+            <option value="Afternoon">Afternoon</option>
+            <option value="Night">Night</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+        <button class="btn btn-outline" onclick="clearFilters()">Clear</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>All Traceability Records</h3>
+          <span class="badge" id="allRecordCount">0</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="allTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>MAC ID</th>
+                <th>Assembly Station</th>
+                <th>Assembly Time</th>
+                <th>Operator</th>
+                <th>Shift</th>
+                <th>Batch</th>
+                <th>Parts Count</th>
+                <th>Box No</th>
+                <th>Long QR</th>
+                <th>Short QR</th>
+                <th>Packed At</th>
+                <th>Packed By</th>
+                <th>Pack Station</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="allTableBody">
+              <tr><td colspan="15" class="empty-row">No data. Click Refresh.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: SEARCH ══════════ -->
+    <section class="page" id="page-search">
+      <div class="search-hero">
+        <h2>Search by Unit ID</h2>
+        <div class="search-bar-wrap">
+          <input type="text" id="searchMacInput" class="search-mac-input"
+            placeholder="AA:BB:CC:DD:EE:FF or scan barcode..."
+            onkeydown="if(event.key==='Enter') searchMac()" />
+          <button class="btn btn-primary btn-lg" onclick="searchMac()">🔍 Search</button>
+        </div>
+      </div>
+
+      <div id="searchResult" class="search-result hidden">
+        <div class="result-grid">
+          <!-- Assembly Card -->
+          <div class="result-card assembly-card">
+            <div class="result-card-header">
+              <span class="result-icon">🔩</span>
+              <h3>Assembly Data</h3>
+              <span class="result-status" id="assemblyStatus">—</span>
+            </div>
+            <div class="result-fields" id="assemblyFields"></div>
+            <div class="parts-section">
+              <h4>Scanned Parts</h4>
+              <div class="parts-grid" id="partsGrid"></div>
+            </div>
+          </div>
+
+          <!-- Packing Card -->
+          <div class="result-card packing-card">
+            <div class="result-card-header">
+              <span class="result-icon">📦</span>
+              <h3>Packing Data</h3>
+              <span class="result-status" id="packingStatus">—</span>
+            </div>
+            <div class="result-fields" id="packingFields"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="searchEmpty" class="search-empty hidden">
+        <div class="empty-icon">🔎</div>
+        <div class="empty-text">No record found for this Unit ID</div>
+      </div>
+      <div id="searchError" class="search-error hidden">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-text" id="searchErrorText">Error fetching data</div>
+      </div>
+    </section>
+
+    <!-- ══════════ PAGE: SETTINGS ══════════ -->
+    <section class="page" id="page-settings">
+      <div class="settings-wrap">
+        <div class="card settings-card">
+          <div class="card-header"><h3>⚙️ Configuration</h3></div>
+          <div class="settings-form">
+            <div class="setting-row">
+              <label>Firebase Database URL</label>
+              <input type="text" id="cfgFirebaseUrl" class="setting-input"
+                placeholder="https://your-project-default-rtdb.firebaseio.com" />
+              <small>Same URL configured in NixTraceability and NixPackTrace</small>
+            </div>
+            <div class="setting-row">
+              <label>Firebase Node (Root Path)</label>
+              <input type="text" id="cfgNodePath" class="setting-input"
+                value="EndToEndTraceability" />
+              <small>Default: EndToEndTraceability</small>
+            </div>
+            <div class="setting-row">
+              <label>Auto-Refresh Interval (seconds)</label>
+              <input type="number" id="cfgRefreshInterval" class="setting-input"
+                value="30" min="10" max="300" />
+            </div>
+            <div class="setting-row">
+              <label>Max Records to Fetch</label>
+              <input type="number" id="cfgMaxRecords" class="setting-input"
+                value="500" min="50" max="5000" />
+              <small>Higher values may slow down loading</small>
+            </div>
+            <div class="setting-row">
+              <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+              <button class="btn btn-outline" onclick="testConnection()">🔗 Test Connection</button>
+            </div>
+            <div id="settingsMsg" class="settings-msg hidden"></div>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <div class="card-header"><h3>📖 Firebase Data Structure</h3></div>
+          <div class="data-structure-info">
+            <div class="struct-item">
+              <div class="struct-label">Assembly App writes to:</div>
+              <code>EndToEndTraceability/{MAC_ID}/AssemblyApp.json</code>
+            </div>
+            <div class="struct-item">
+              <div class="struct-label">Packing App writes to:</div>
+              <code>EndToEndTraceability/{MAC_ID}/PackingApp.json</code>
+            </div>
+            <div class="struct-item">
+              <div class="struct-label">This Dashboard reads:</div>
+              <code>EndToEndTraceability.json (full node)</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Fetching Firebase data...</div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
